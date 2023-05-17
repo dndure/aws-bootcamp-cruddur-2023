@@ -15,7 +15,7 @@ from services.messages import *
 from services.create_message import *
 from services.show_activity import *
 
-from lib.cognito_jwt_token import CognitoJwtToken, extract_access_token.TokenVerifyError
+from lib.cognito_jwt_token import CognitoJwtToken, extract_access_token, TokenVerifyError
 
 # HoneyComb
 from opentelemetry import trace
@@ -78,8 +78,8 @@ tracer = trace.get_tracer(__name__)
 app = Flask(__name__)
 
 cognito_jwt_token = CognitoJwtToken(
-    user_pool_id = os.getenv("AWS_COGNITO_USER_POOL_ID")
-    user_pool_client_id = os.getenv("AWS_COGNITO_USER_POOL_CLIENT_ID")
+    user_pool_id = os.getenv("AWS_COGNITO_USER_POOL_ID"),
+    user_pool_client_id = os.getenv("AWS_COGNITO_USER_POOL_CLIENT_ID"),
     region = os.getenv("AWS_DEFAULT_REGION")
 )
 
@@ -185,21 +185,20 @@ def data_notifications():
 @app.route("/api/activities/home", methods=['GET'])
 # @xray_recorder.capture('activities_home')
 def data_home():
-    access_token = extract_access_token(request.headers)
-                try:
-                    claims = cognito_jwt_token.self.token_service.verify(access_token)
-                    self.claims = self.token_service.claims
-                    g.cognito_claims = self.claims
-                except TokenVerifyError as e:
-                    _ = request.data
-                    abort(make_response(jsonify(message=str(e)), 401))
-
+  access_token = extract_access_token(request.headers)
+  try:
+    claims = cognito_jwt_token.verify(access_token)
+    # authenicatied request
+    app.logger.debug("authenicated")
+    app.logger.debug(claims)
+    app.logger.debug(claims['username'])
+    data = HomeActivities.run(cognito_user_id=claims['username'])
+  except TokenVerifyError as e:
+    # unauthenicatied request
+    app.logger.debug(e)
+    app.logger.debug("unauthenicated")
     data = HomeActivities.run()
-
-    claims = aws_auth.claims
-    app.logger.debug('claims')
-    app.logger.debug(claims) 
-    return data, 200
+  return data, 200
 
 
 @app.route("/api/activities/@<string:handle>", methods=['GET'])
